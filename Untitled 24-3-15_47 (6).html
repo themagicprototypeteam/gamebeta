@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+
+<style id="webmakerstyle">
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #282c34;
+        color: white;
+        text-align: center;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+    }
+    #startScreen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    #gameCanvas {
+        border: 1px solid #fff;
+        z-index: 1;  /* Ensure canvas is above other elements */
+        position: relative; /* Add position relative */
+        margin-top: 20px; /* Ensure spacing from elements above */
+    }
+    #gameScreen {
+        display: none;
+        position: relative;
+        z-index: 2; /* Ensure game screen is above everything else */
+    }
+    #healthBar {
+        width: 200px;
+        height: 20px;
+        background: red;
+        margin: 10px auto;
+    }
+    #mapCanvas {
+        border: 1px solid #fff;
+        margin-top: 10px;
+        z-index: 1; 
+    }
+    #spellBooksDisplay {
+        margin: 20px;
+        font-size: 16px;
+    }
+    .low-health {
+        border: 2px solid red;
+    }
+    canvas {
+        margin-top: 10px;
+    }
+</style>
+</style>
+</head>
+<body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Battle Royale</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #282c34;
+            color: white;
+            text-align: center;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        #startScreen, #gameScreen {
+            position: absolute;
+            width: 100%;
+            height: 100vh; /* Full height */
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1; /* Overlay */
+        }
+        #gameScreen {
+            display: none;
+        }
+        #gameCanvas, #mapCanvas {
+            border: 1px solid #fff;
+        }
+        #healthBar {
+            width: 200px;
+            height: 20px;
+            background: red;
+            margin: 10px auto;
+        }
+        #spellBooksDisplay {
+            margin: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>Magical Battle Royale</h1>
+        <input type="text" id="displayName" placeholder="Enter your display name" />
+        <button id="startGameButton">Start Game</button>
+        <canvas id="mapCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <div id="gameScreen">
+        <h2>Welcome, <span id="playerName"></span>!</h2>
+        <div id="healthBar"></div>
+        <div id="spellBooksDisplay">Spell Books: </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        const startScreen = document.getElementById('startScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const playerNameDisplay = document.getElementById('playerName');
+        const displayNameInput = document.getElementById('displayName');
+        const startGameButton = document.getElementById('startGameButton');
+        const healthBar = document.getElementById('healthBar');
+        const spellBooksDisplay = document.getElementById('spellBooksDisplay');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const mapCanvas = document.getElementById('mapCanvas');
+        const mapCtx = mapCanvas.getContext('2d');
+
+        let player;
+        let bots = [];
+        let numberOfBots = 5;
+        let gameRunning = false;
+        let playerHealth = 100;
+        let spawnPosition = { x: 0, y: 0 };
+
+        class Player {
+            // Player constructor remains unchanged
+        }
+
+        class Bot {
+            constructor(name, x, y) {
+                this.name = name;
+                this.x = x;
+                this.y = y;
+                this.color = 'red';
+                this.size = 30;
+                this.health = 100;
+                this.spellCount = 0;
+                this.speed = 1;
+            }
+
+            moveTowards(player) {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.sqrt(dx ** 2 + dy ** 2);
+                if (distance > 0) {
+                    this.x += (dx / distance) * this.speed;
+                    this.y += (dy / distance) * this.speed;
+                }
+            }
+
+            draw(cameraX, cameraY) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - cameraX, this.y - cameraY, this.size, this.size);
+            }
+
+            collectSpellBook() {
+                // Logic to collect spellbooks and eliminate other bots
+            }
+        }
+
+        function drawMap() {
+            mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+            mapCtx.fillStyle = '#87CEEB'; // Sky blue
+            mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height / 2);
+            mapCtx.fillStyle = '#228B22'; // Grass green
+            mapCtx.fillRect(0, mapCanvas.height / 2, mapCanvas.width, mapCanvas.height / 2);
+            // Draw spell books and other map elements
+            drawSpellBooks();
+        }
+
+        function drawSpellBooks() {
+            // Example spell book positions
+            for (let i = 0; i < 5; i++) {
+                const x = Math.random() * (mapCanvas.width - 30);
+                const y = Math.random() * (mapCanvas.height / 2 - 30) + (mapCanvas.height / 2);
+                mapCtx.fillStyle = 'yellow';
+                mapCtx.fillRect(x, y, 20, 20); // Spellbook size
+            }
+        }
+
+        function startGame(startX, startY) {
+            if (isNaN(startX) || isNaN(startY)) {
+                alert("Please select a starting position on the map!");
+                return;
+            }
+
+            startScreen.style.display = 'none';
+            gameScreen.style.display = 'block';
+
+            const displayName = displayNameInput.value || 'Player';
+            player = new Player(displayName, startX, startY);
+            playerHealth = 100;
+
+            spawnBots();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function spawnBots() {
+            for (let i = 0; i < numberOfBots; i++) {
+                const bot = new Bot(`Bot ${i + 1}`, Math.random() * (canvas.width - 50), Math.random() * (canvas.height - 50));
+                bots.push(bot);
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            // Prevent multiple declarations
+            if (!player) return;
+
+            switch (event.key) {
+                case 'ArrowUp':
+                case 'w':
+                    player.move('up'); break;
+                case 'ArrowDown':
+                case 's':
+                    player.move('down'); break;
+                case 'ArrowLeft':
+                case 'a':
+                    player.move('left'); break;
+                case 'ArrowRight':
+                case 'd':
+                    player.move('right'); break;
+            }
+        });
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cameraX = player.x - canvas.width / 2 + player.size / 2;
+            const cameraY = player.y - canvas.height / 2 + player.size / 2;
+
+            player.draw(cameraX, cameraY);
+
+            for (const bot of bots) {
+                bot.moveTowards(player); // Bots move towards the player
+                bot.draw(cameraX, cameraY);
+                bot.collectSpellBook(); // Implement spell book logic for bots
+            }
+            healthBar.style.width = `${playerHealth}px`;
+            spellBooksDisplay.innerText = `Spell Books: [${player.spellCount}]`;
+        }
+
+        mapCanvas.addEventListener('click', (event) => {
+            const rect = event.target.getBoundingClientRect();
+            spawnPosition.x = event.clientX - rect.left;
+            spawnPosition.y = event.clientY - rect.top;
+
+            clearArrows();
+            drawArrow(spawnPosition.x, spawnPosition.y);
+        });
+
+        function clearArrows() {
+            mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height); // Clear the entire canvas
+            drawMap(); // Redraw the map without arrows
+        }
+
+        function drawArrow(x, y) {
+            mapCtx.fillStyle = 'yellow';
+            mapCtx.beginPath();
+            mapCtx.moveTo(x, y);
+            mapCtx.lineTo(x - 10, y - 20);
+            mapCtx.lineTo(x + 10, y - 20);
+            mapCtx.closePath();
+            mapCtx.fill();
+        }
+
+        startGameButton.addEventListener('click', () => {
+            const { x, y } = spawnPosition;
+            startGame(x, y);
+        });
+
+        drawMap(); // Initialize the map and draw it
+    </script>
+</body>
+</html>
+
+<script>
+// game.js
+const startScreen = document.getElementById('startScreen');
+const gameScreen = document.getElementById('gameScreen');
+const playerNameDisplay = document.getElementById('playerName');
+const displayNameInput = document.getElementById('displayName');
+const startGameButton = document.getElementById('startGameButton');
+const healthBar = document.getElementById('healthBar');
+const spellBooksDisplay = document.getElementById('spellBooksDisplay');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const mapCanvas = document.getElementById('mapCanvas');
+const mapCtx = mapCanvas.getContext('2d');
+
+let player;
+let bots = [];
+let numberOfBots = 5;
+let gameRunning = false;
+let playerHealth = 100;
+let spawnPosition = { x: 0, y: 0 };
+
+// Player constructor
+class Player {
+    constructor(name, x, y) {
+        this.name = name;
+        this.x = x;
+        this.y = y;
+        this.color = 'blue';
+        this.size = 40; 
+        this.speed = 4;
+        this.spellCount = 0;
+    }
+
+    move(direction) {
+        switch (direction) {
+            case 'up':
+                this.y = Math.max(this.y - this.speed, 0);
+                break;
+            case 'down':
+                this.y = Math.min(this.y + this.speed, canvas.height - this.size);
+                break;
+            case 'left':
+                this.x = Math.max(this.x - this.speed, 0);
+                break;
+            case 'right':
+                this.x = Math.min(this.x + this.speed, canvas.width - this.size);
+                break;
+        }
+    }
+
+    draw(cameraX, cameraY) {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - cameraX, this.y - cameraY, this.size, this.size);
+    }
+}
+
+// Bot constructor
+class Bot {
+    constructor(name, x, y) {
+        this.name = name;
+        this.x = x;
+        this.y = y;
+        this.color = 'red';
+        this.size = 30; 
+        this.health = 100;
+        this.air = 100;
+        this.speed = 1;
+    }
+
+    moveTowards(player) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distance = Math.sqrt(dx ** 2 + dy ** 2);
+        if (distance > 0) {
+            this.x += (dx / distance) * this.speed;
+            this.y += (dy / distance) * this.speed;
+        }
+    }
+
+    draw(cameraX, cameraY) {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - cameraX, this.y - cameraY, this.size, this.size);
+
+        // Draw Health Bar
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x - cameraX, this.y - cameraY - 10, this.size, 5);
+        ctx.fillStyle = 'green';
+        ctx.fillRect(this.x - cameraX, this.y - cameraY - 10, this.size * (this.health / 100), 5);
+
+        // Draw Air Bar
+        ctx.fillStyle = 'blue';
+        ctx.fillRect(this.x - cameraX, this.y - cameraY - 15, this.size, 3);
+        ctx.fillStyle = 'cyan';
+        ctx.fillRect(this.x - cameraX, this.y - cameraY - 15, this.size * (this.air / 100), 3);
+    }
+}
+
+// Draw Map Function
+function drawMap() {
+    mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+    // Draw sky
+    mapCtx.fillStyle = '#87CEEB'; // Sky blue
+    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height / 2);
+    // Draw ground
+    mapCtx.fillStyle = '#228B22'; // Grass green
+    mapCtx.fillRect(0, mapCanvas.height / 2, mapCanvas.width, mapCanvas.height / 2);
+    // Example structure
+    mapCtx.fillStyle = '#8B0000'; // Red for structures
+    mapCtx.fillRect(50, 50, 40, 40); // Example house
+    // Instructions
+    mapCtx.fillStyle = 'black';
+    mapCtx.font = '20px Arial';
+    mapCtx.fillText("Click to select a starting position", 10, 20);
+}
+
+// Start Game Function
+function startGame(startX, startY) {
+    if (isNaN(startX) || isNaN(startY)) {
+        alert("Please select a starting position on the map!");
+        return;
+    }
+
+    startScreen.style.display = 'none';
+    gameScreen.style.display = 'block';
+
+    const displayName = displayNameInput.value || 'Player';
+    player = new Player(displayName, startX, startY);
+    playerHealth = 100;
+
+    // Spawn items and bots
+    spawnBots();
+    gameRunning = true;
+    gameLoop();
+}
+
+// Spawn Bots Function
+function spawnBots() {
+    for (let i = 0; i < numberOfBots; i++) {
+        const bot = new Bot(`Bot ${i + 1}`, Math.random() * (canvas.width - 50), Math.random() * (canvas.height - 50));
+        bots.push(bot);
+    }
+}
+
+// Handle Keyboard Input
+document.addEventListener('keydown', (event) => {
+    switch (event.key) {
+        case 'ArrowUp':
+        case 'w':
+            player.move('up');
+            break;
+        case 'ArrowDown':
+        case 's':
+            player.move('down');
+            break;
+        case 'ArrowLeft':
+        case 'a':
+            player.move('left');
+            break;
+        case 'ArrowRight':
+        case 'd':
+            player.move('right');
+            break;
+    }
+});
+
+// Game Loop
+function gameLoop() {
+    if (!gameRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cameraX = player.x - canvas.width / 2 + player.size / 2;
+    const cameraY = player.y - canvas.height / 2 + player.size / 2;
+
+    // Draw Player
+    player.draw(cameraX, cameraY);
+
+    // Draw Bots and Update Movement
+    for (const bot of bots) {
+        bot.moveTowards(player); // Bots move towards the player
+        bot.draw(cameraX, cameraY);
+    }
+
+    // Update Health Bar
+    healthBar.style.width = `${playerHealth}px`;
+    spellBooksDisplay.innerText = `Spell Books: [${player.spellCount}]`;
+}
+
+// Map Click Event for Selecting Start Position
+mapCanvas.addEventListener('click', (event) => {
+    const rect = event.target.getBoundingClientRect();
+    spawnPosition.x = event.clientX - rect.left;
+    spawnPosition.y = event.clientY - rect.top;
+
+    clearArrows();
+    drawArrow(spawnPosition.x, spawnPosition.y);
+});
+
+// Clear Arrows from Map
+function clearArrows() {
+    mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height); // Clear the entire canvas
+    drawMap(); // Redraw the map without arrows
+}
+
+// Draw Arrow on Map
+function drawArrow(x, y) {
+    mapCtx.fillStyle = 'yellow';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, y);
+    mapCtx.lineTo(x - 10, y - 20);
+    mapCtx.lineTo(x + 10, y - 20);
+    mapCtx.closePath();
+    mapCtx.fill();
+}
+
+// Start Game Event Handling
+startGameButton.addEventListener('click', () => {
+    const { x, y } = spawnPosition;
+    startGame(x, y);
+});
+
+// Initialize the Map
+drawMap();
+
+healthBar.style.width = `${playerHealth}px`; // Initialize health bar width
+
+// Handle Keyboard Input
+document.addEventListener('keydown', (event) => {
+    if (player) { // Check if player is defined
+        switch (event.key) {
+            case 'ArrowUp':
+            case 'w':
+                player.move('up');
+                break;
+            case 'ArrowDown':
+            case 's':
+                player.move('down');
+                break;
+            case 'ArrowLeft':
+            case 'a':
+                player.move('left');
+                break;
+            case 'ArrowRight':
+            case 'd':
+                player.move('right');
+                break;
+        }
+    }
+});
+
+
+//# sourceURL=userscript.js
+</script>
+</body>
+</html>
