@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+
+<style id="webmakerstyle">
+
+</style>
+</head>
+<body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Battle Royale</title>
+    <style>
+        /* General styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #282c34;
+            color: white;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        #startScreen, #gameScreen {
+            position: absolute;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameScreen {
+            display: none; /* Initially hidden */
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        /* Gameplay Canvas */
+        #gameCanvas {
+            width: 100%;
+            height: 100%; /* Fullscreen gameplay */
+            display: block;
+        }
+
+        /* Minimap */
+        #minimap {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid white;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        /* HP Display */
+        #healthBarContainer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        #healthBar {
+            width: 200px;
+            height: 20px;
+            background-color: red;
+            margin-right: 10px;
+        }
+
+        #healthText {
+            font-size: 16px;
+            color: white;
+        }
+
+        /* Spellbook Slots */
+        #spellBooksDisplay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #spellSlots {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+        }
+
+        .spellSlot {
+            width: 40px;
+            height: 40px;
+            border: 1px solid white;
+            text-align: center;
+            line-height: 40px;
+            margin: 0 5px;
+            font-size: 14px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 5px;
+        }
+
+        .spellSlot.active {
+            background-color: rgba(0, 255, 0, 0.5); /* Highlight active slot */
+        }
+    </style>
+</head>
+<body>
+    <!-- Menu Screen -->
+    <div id="startScreen">
+        <h1>Magical Battle Royale</h1>
+        <button id="startGameButton">Start Game</button>
+        <button id="settingsButton">Settings</button>
+        <button id="cosmeticsButton" disabled>Cosmetics Shop (Coming Soon)</button>
+        <button id="friendsButton" disabled>Friend List (Coming Soon)</button>
+        <button id="inviteButton" disabled>Invite (Coming Soon)</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen">
+        <!-- Gameplay Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Minimap -->
+        <canvas id="minimap"></canvas>
+
+        <!-- HP Display -->
+        <div id="healthBarContainer">
+            <div id="healthBar"></div>
+            <span id="healthText">100 HP</span>
+        </div>
+
+        <!-- Spellbook Slots -->
+        <div id="spellBooksDisplay">
+            Spell Books:
+            <div id="spellSlots">
+                <div class="spellSlot" data-key="1">1</div>
+                <div class="spellSlot" data-key="2">2</div>
+                <div class="spellSlot" data-key="3">3</div>
+                <div class="spellSlot" data-key="4">4</div>
+                <div class="spellSlot" data-key="5">5</div>
+                <div class="spellSlot" data-key="6">6</div>
+                <div class="spellSlot" data-key="7">7</div>
+                <div class="spellSlot" data-key="8">8</div>
+                <div class="spellSlot" data-key="9">9</div>
+                <div class="spellSlot" data-key="10">10</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Menu Buttons
+        const startGameButton = document.getElementById('startGameButton');
+        const settingsButton = document.getElementById('settingsButton');
+        const cosmeticsButton = document.getElementById('cosmeticsButton');
+        const friendsButton = document.getElementById('friendsButton');
+        const inviteButton = document.getElementById('inviteButton');
+
+        // Gameplay Elements
+        const startScreen = document.getElementById('startScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const minimap = document.getElementById('minimap');
+        const healthBar = document.getElementById('healthBar');
+        const healthText = document.getElementById('healthText');
+        const spellSlots = document.querySelectorAll('.spellSlot');
+        const minimapCtx = minimap.getContext('2d');
+        const ctx = gameCanvas.getContext('2d');
+
+        // Map and Gameplay Variables
+        const mapWidth = 2000;  // Bigger map
+        const mapHeight = 2000; // Bigger map
+        let player = { x: 1000, y: 1000, size: 20, color: 'blue', speed: 10 };
+        let bots = [
+            { x: 500, y: 500, size: 15, color: 'red' },
+            { x: 1500, y: 1500, size: 15, color: 'red' }
+        ];
+        let playerHealth = 100;
+        let gameRunning = false;
+
+        // Start Game
+        startGameButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            gameScreen.style.display = 'flex';
+            gameRunning = true;
+            resizeCanvas();
+            gameLoop();
+        });
+
+        // Resize Canvas to Fullscreen
+        function resizeCanvas() {
+            gameCanvas.width = window.innerWidth;
+            gameCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Update Minimap
+        function updateMinimap() {
+            minimapCtx.clearRect(0, 0, minimap.width, minimap.height);
+
+            // Draw Player
+            minimapCtx.fillStyle = player.color;
+            minimapCtx.fillRect(player.x / (mapWidth / minimap.width), player.y / (mapHeight / minimap.height), player.size / 2, player.size / 2);
+
+            // Draw Bots
+            bots.forEach(bot => {
+                minimapCtx.fillStyle = bot.color;
+                minimapCtx.fillRect(bot.x / (mapWidth / minimap.width), bot.y / (mapHeight / minimap.height), bot.size / 2, bot.size / 2);
+            });
+        }
+
+        // Update Health Bar
+        function updateHealthBar() {
+            healthBar.style.width = `${playerHealth}px`;
+            healthText.textContent = `${playerHealth} HP`;
+        }
+
+        // Game Loop with Camera Movement
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            const cameraX = Math.max(0, Math.min(player.x - gameCanvas.width / 2, mapWidth - gameCanvas.width));
+            const cameraY = Math.max(0, Math.min(player.y - gameCanvas.height / 2, mapHeight - gameCanvas.height));
+
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // Draw Map Background
+            ctx.fillStyle = '#87CEEB'; // Sky blue
+            ctx.fillRect(-cameraX, -cameraY, mapWidth, mapHeight);
+
+            // Draw Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x - cameraX, player.y - cameraY, player.size, player.size);
+
+            // Draw Bots
+            bots.forEach(bot => {
+                ctx.fillStyle = bot.color;
+                ctx.fillRect(bot.x - cameraX, bot.y - cameraY, bot.size, bot.size);
+            });
+
+            updateMinimap();
+            updateHealthBar();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Example Key Controls for Player Movement
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowUp') player.y = Math.max(0, player.y - player.speed);
+            if (event.key === 'ArrowDown') player.y = Math.min(mapHeight - player.size, player.y + player.speed);
+            if (event.key === 'ArrowLeft') player.x = Math.max(0, player.x - player.speed);
+            if (event.key === 'ArrowRight') player.x = Math.min(mapWidth - player.size, player.x + player.speed);
+        });
+
+        // Initialize Game State
+        updateHealthBar();
+    </script>
+</body>
+</html>
+
+
+</body>
+</html>
