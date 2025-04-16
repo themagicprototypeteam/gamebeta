@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+
+<style id="webmakerstyle">
+
+</style>
+</head>
+<body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Battle Royale</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #282c34;
+            color: white;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #startScreen, #gameScreen {
+            position: absolute;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameScreen {
+            display: none; /* Initially hidden */
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #minimap {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid white;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        #healthBarContainer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        #healthBar {
+            width: 200px;
+            height: 20px;
+            background-color: red;
+            margin-right: 10px;
+        }
+
+        #healthText {
+            font-size: 16px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Menu Screen -->
+    <div id="startScreen">
+        <h1>Magical Battle Royale</h1>
+        <button id="startGameButton">Start Game</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen">
+        <canvas id="gameCanvas"></canvas>
+        <canvas id="minimap"></canvas>
+        <div id="healthBarContainer">
+            <div id="healthBar"></div>
+            <span id="healthText">100 HP</span>
+        </div>
+    </div>
+
+    <script>
+        const startGameButton = document.getElementById('startGameButton');
+        const gameScreen = document.getElementById('gameScreen');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const minimap = document.getElementById('minimap');
+        const healthBar = document.getElementById('healthBar');
+        const healthText = document.getElementById('healthText');
+        const ctx = gameCanvas.getContext('2d');
+        const minimapCtx = minimap.getContext('2d');
+
+        // Map Configuration
+        const mapData = [
+            ['forest', 'forest', 'field', 'village', 'river'],
+            ['mountain', 'field', 'field', 'field', 'river'],
+            ['forest', 'river', 'field', 'village', 'river'],
+            ['field', 'river', 'field', 'forest', 'forest'],
+            ['village', 'field', 'mountain', 'field', 'field'],
+        ];
+
+        const terrainColors = {
+            forest: '#228B22',
+            mountain: '#A9A9A9',
+            field: '#7CFC00',
+            village: '#FFD700',
+            river: '#1E90FF',
+        };
+
+        const mapWidth = 2000;
+        const mapHeight = 2000;
+
+        let player = { x: 1000, y: 1000, size: 20, color: 'blue', speed: 10, health: 100 };
+        let bots = Array.from({ length: 5 }, () => ({
+            x: Math.random() * mapWidth,
+            y: Math.random() * mapHeight,
+            size: 15,
+            color: 'red',
+            speed: 2,
+            spellbooks: [],
+            health: 100,
+        }));
+        let spellbooks = Array.from({ length: 10 }, () => ({
+            x: Math.random() * mapWidth,
+            y: Math.random() * mapHeight,
+            size: 10,
+            color: 'yellow',
+        }));
+        let gameRunning = false;
+
+        function drawMap() {
+            const tileSize = 400; // Adjust size of each tile to fit the map
+            for (let y = 0; y < mapData.length; y++) {
+                for (let x = 0; x < mapData[y].length; x++) {
+                    ctx.fillStyle = terrainColors[mapData[y][x]];
+                    ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                }
+            }
+        }
+
+        function updateMinimap() {
+            minimapCtx.clearRect(0, 0, minimap.width, minimap.height);
+
+            // Draw Player
+            minimapCtx.fillStyle = player.color;
+            minimapCtx.fillRect(
+                (player.x / mapWidth) * minimap.width,
+                (player.y / mapHeight) * minimap.height,
+                player.size / 2,
+                player.size / 2
+            );
+
+            // Draw Bots
+            bots.forEach(bot => {
+                minimapCtx.fillStyle = bot.color;
+                minimapCtx.fillRect(
+                    (bot.x / mapWidth) * minimap.width,
+                    (bot.y / mapHeight) * minimap.height,
+                    bot.size / 2,
+                    bot.size / 2
+                );
+            });
+
+            // Draw Spellbooks
+            spellbooks.forEach(book => {
+                minimapCtx.fillStyle = book.color;
+                minimapCtx.fillRect(
+                    (book.x / mapWidth) * minimap.width,
+                    (book.y / mapHeight) * minimap.height,
+                    book.size / 2,
+                    book.size / 2
+                );
+            });
+        }
+
+        function botBehavior(bot) {
+            if (!bot.spellbooks.length) {
+                // Collect nearest spellbook
+                const nearestBook = findNearest(bot, spellbooks);
+                if (nearestBook) {
+                    moveToTarget(bot, nearestBook);
+                    if (isColliding(bot, nearestBook)) {
+                        collectSpellbook(bot, nearestBook);
+                    }
+                }
+            } else {
+                // Attack nearest enemy
+                const nearestEnemy = findNearest(bot, [player, ...bots.filter(b => b !== bot)]);
+                if (nearestEnemy) {
+                    moveToTarget(bot, nearestEnemy);
+                    if (isColliding(bot, nearestEnemy)) {
+                        attack(bot, nearestEnemy);
+                    }
+                }
+            }
+        }
+
+        function findNearest(entity, targets) {
+            let nearest = null;
+            let minDistance = Infinity;
+            targets.forEach(target => {
+                const distance = Math.hypot(entity.x - target.x, entity.y - target.y);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = target;
+                }
+            });
+            return nearest;
+        }
+
+        function moveToTarget(entity, target) {
+            const angle = Math.atan2(target.y - entity.y, target.x - entity.x);
+            entity.x += Math.cos(angle) * entity.speed;
+            entity.y += Math.sin(angle) * entity.speed;
+        }
+
+        function isColliding(entity1, entity2) {
+            return Math.hypot(entity1.x - entity2.x, entity1.y - entity2.y) < entity1.size + entity2.size;
+        }
+
+        function collectSpellbook(bot, spellbook) {
+            spellbooks = spellbooks.filter(book => book !== spellbook); // Remove from map
+            bot.spellbooks.push(spellbook); // Add to bot's inventory
+        }
+
+        function attack(attacker, target) {
+            target.health -= 10; // Reduce health
+            if (target.health <= 0) {
+                // Target dies, drop loot
+                dropLoot(target);
+            }
+        }
+
+        function dropLoot(deadEntity) {
+            deadEntity.spellbooks.forEach(book => {
+                book.x = deadEntity.x + Math.random() * 20 - 10;
+                book.y = deadEntity.y + Math.random() * 20 - 10;
+                spellbooks.push(book);
+            });
+            deadEntity.spellbooks = [];
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            drawMap();
+
+            // Draw Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            // Update Bots
+            bots.forEach(bot => {
+                botBehavior(bot);
+                ctx.fillStyle = bot.color;
+                ctx.fillRect(bot.x, bot.y, bot.size, bot.size);
+            });
+
+            // Draw Spellbooks
+            spellbooks.forEach(book => {
+                ctx.fillStyle = book.color;
+                ctx.fillRect(book.x, book.y, book.size, book.size);
+            });
+
+            updateMinimap();
+            requestAnimationFrame(gameLoop);
+        }
+
+        startGameButton.addEventListener('click', () => {
+            gameScreen.style.display = 'flex';
+            gameRunning = true;
+            gameLoop();
+        });
+    </script>
+</body>
+</html>
+
+
+</body>
+</html>
